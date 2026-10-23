@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DVS Receiver</title>
+  <link rel="stylesheet" href="/receiver/styles.css">
+</head>
+<body>
+  <section id="setup" class="setup">
+    <h1>DVS Receiver</h1>
+    <form id="setupForm">
+      <input name="serverUrl" placeholder="https://dvs.example.com:3080" required>
+      <input name="name" placeholder="Nome desta TV" required>
+      <button type="submit">Conectar</button>
+    </form>
+  </section>
+
+  <main id="stage" class="stage" hidden>
+    <iframe id="frame" title="Painel"></iframe>
+    <img id="serverImage" alt="Painel renderizado">
+    <video id="videoPlayer" autoplay playsinline></video>
+    <div id="identify" class="identify" hidden></div>
+    <section id="panelError" class="panel-error" role="alert" hidden><div><strong>Problema no Link do Painel</strong><p>Verifique o endereço cadastrado e a disponibilidade do painel.</p><p id="panelErrorDetail"></p><small>Uma nova tentativa será feita automaticamente.</small></div></section>
+    <div id="message" class="message">Aguardando painel</div>
+  </main>
+
+  <script src="/receiver/receiver.js"></script>
+</body>
+</html>

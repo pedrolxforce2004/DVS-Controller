@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
+  <title>DVS Controller</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="titlebar">
+    <div class="identity">
+      <div class="logo">D</div>
+      <div><strong>DVS Controller</strong><span>Gerenciador de Serviços</span></div>
+    </div>
+    <div class="window-actions">
+      <button id="minimize" aria-label="Minimizar">&#8722;</button>
+      <button id="maximize" aria-label="Maximizar">&#9723;</button>
+      <button id="close" class="close" aria-label="Fechar">&#10005;</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="overview">
+      <div>
+        <div class="eyebrow">PLATAFORMA PRINCIPAL</div>
+        <div class="machine-row"><h1 id="machine">Este computador</h1><span id="globalStatus" class="global-status"><i></i> Verificando...</span></div>
+        <p id="platform">Windows 11 • servidor local</p>
+      </div>
+      <div class="overview-actions">
+        <button id="openAdmin" class="secondary">Abrir painel</button>
+        <button id="stopAll" class="danger">Parar serviços</button>
+        <button id="restartAll">Reiniciar tudo</button>
+        <button id="refresh" class="icon-button" title="Atualizar">&#8635;</button>
+      </div>
+    </section>
+
+    <section class="content-card">
+      <div class="content-heading">
+        <div><h2>Serviços do sistema</h2><p>Processos essenciais para a operação das TVs</p></div>
+        <button id="settingsButton" class="secondary">Configurar portas</button>
+      </div>
+      <div class="service-header"><span>Serviço</span><span>Descrição</span><span>Porta</span><span>Status</span><span>Operação</span></div>
+      <div id="services" class="services"><div class="loading">Carregando serviços...</div></div>
+    </section>
+
+    <section class="content-card samsung-tools">
+      <div class="content-heading">
+        <div><h2>Preparacao Samsung Tizen</h2><p>Instalacao oficial das extensoes e gerenciamento do perfil de assinatura</p></div>
+        <div class="samsung-actions"><button id="openTizenPackages" class="secondary">Package Manager</button><button id="openTizenCertificates" class="secondary">Certificate Manager</button></div>
+      </div>
+    </section>
+
+    <footer><span id="updatedAt">Aguardando atualização</span><span>Atualização automática a cada 5 segundos</span></footer>
+  </main>
+
+  <dialog id="settingsDialog">
+    <form id="settingsForm">
+      <div class="dialog-heading"><div><span class="eyebrow">CONFIGURAÇÃO</span><h2>Portas do servidor</h2></div><button type="button" id="cancelSettings" class="dialog-close">&#10005;</button></div>
+      <p class="dialog-copy">As alterações reiniciam os serviços necessários. As TVs deverão usar a nova porta do DVS Server.</p>
+      <label>Porta do DVS Server<input name="serverPort" type="number" min="1024" max="65535" required><small>Painel, API, streaming e conexão das TVs</small></label>
+      <label>Porta do PostgreSQL<input name="databasePort" type="number" min="1024" max="65535" required><small>Acesso restrito ao computador local</small></label>
+      <label>Certificado TLS (PEM)<input name="tlsCertPath" placeholder="C:\\ProgramData\\DVS Controller\\tls\\server.crt"><small>Certificado confiavel para o nome ou IP do servidor</small></label>
+      <label>Chave privada TLS (PEM)<input name="tlsKeyPath" type="password" autocomplete="off" placeholder="C:\\ProgramData\\DVS Controller\\tls\\server.key"><small>Acesso ao arquivo restrito ao servico</small></label>
+      <label class="tls-toggle"><input name="requireAdminTls" type="checkbox"> Exigir HTTPS para login e administracao</label>
+      <div id="formError" class="form-error"></div>
+      <div class="dialog-actions"><button type="button" id="cancelSettingsBottom" class="secondary">Cancelar</button><button type="submit">Salvar e reiniciar</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

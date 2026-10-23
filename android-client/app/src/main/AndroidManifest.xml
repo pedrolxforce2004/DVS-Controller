@@ -1,0 +1,29 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-feature android:name="android.software.leanback" android:required="true" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application android:label="DVS Receiver" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="true" android:icon="@drawable/banner" android:banner="@drawable/banner"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".BootReceiver" android:enabled="false" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".SettingsReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="br.com.decode.dvsreceiver.SET_AUTO_LAUNCH" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

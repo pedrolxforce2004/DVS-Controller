@@ -1,0 +1,131 @@
+{
+  "name": "dvs-controller",
+  "version": "0.6.8",
+  "private": true,
+  "description": "DVS Controller - gerenciamento de paineis em LG webOS, Samsung Tizen e Android TV.",
+  "author": "Decode",
+  "main": "manager/main.js",
+  "scripts": {
+    "start": "node launcher.js",
+    "stop": "node stop.js",
+    "dev": "node server.js",
+    "manager": "electron .",
+    "service": "node service/host.js",
+    "build:icon": "node scripts/build-icon.js",
+    "prepare:installer": "npm run build:icon && powershell -NoProfile -ExecutionPolicy Bypass -File installer/prepare-runtime.ps1",
+    "dist:win": "npm run prepare:installer && electron-builder --win nsis",
+    "test:syntax": "node --check launcher.js && node --check stop.js && node --check server.js && node --check service/host.js && node --check manager/main.js && node --check manager/preload.js && node --check manager/ui/app.js && node --check installer/setup.js && node --check lib/config-store.js && node --check lib/postgres-store.js && node --check lib/media-manager.js && node --check lib/webos-manager.js && node --check lib/tizen-manager.js && node --check lib/android-manager.js && node --check public/login.js && node --check public/admin/app.js && node --check public/dashboard/app.js && node --check public/receiver/receiver.js && node --check webos-client/receiver.js && node --check tizen-client/receiver.js && node --check tests/service-installation.js && node --check tests/webos-cli.js && node --check tests/tizen-cli.js && node --check tests/android-cli.js && node --check tests/config-store.js && node --check tests/manager-ui.js && node --check tests/admin-ui.js && node --check tests/dashboard-ui.js && node --check tests/integration.js && node --check tests/security.js && node --check tests/postgres-integration.js && node --check tests/rendering-lab.js && node --check tests/watchdog.js && node --check lib/panel-health.js && node --check scripts/release-source.js",
+    "test:integration": "node tests/integration.js",
+    "test:security": "node tests/security.js",
+    "test:watchdog": "node tests/watchdog.js",
+    "test:config": "node tests/config-store.js",
+    "test:manager-ui": "node tests/manager-ui.js",
+    "test:admin-ui": "node tests/admin-ui.js",
+    "test:postgres": "node tests/postgres-integration.js",
+    "test:service-installation": "node tests/service-installation.js",
+    "test:webos-cli": "node tests/webos-cli.js",
+    "test:tizen-cli": "node tests/tizen-cli.js",
+    "test:android-cli": "node tests/android-cli.js",
+    "test:render-lab": "node tests/rendering-lab.js",
+    "test": "npm run test:syntax && npm run test:service-installation && npm run test:webos-cli && npm run test:tizen-cli && npm run test:android-cli && npm run test:config && npm run test:integration && npm run test:security && npm run test:postgres && npm run test:watchdog && npm run test:manager-ui && npm run test:admin-ui && npm run test:dashboard-ui && npm run test:panel-health && npm run test:receiver-ui && npm run test:upgrade",
+    "release:source": "node scripts/release-source.js",
+    "test:panel-health": "node tests/panel-health.js",
+    "test:receiver-ui": "node tests/receiver-ui.js",
+    "test:upgrade": "node tests/upgrade.js",
+    "test:dashboard-ui": "node tests/dashboard-ui.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.54.2"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.2"
+  },
+  "build": {
+    "appId": "br.com.decode.dvscontroller",
+    "productName": "DVS Controller",
+    "artifactName": "DVS-Controller-Setup-${version}.${ext}",
+    "asar": true,
+    "files": [
+      "launcher.js",
+      "server.js",
+      "stop.js",
+      "lib/**/*",
+      "service/**/*",
+      "manager/**/*",
+      "installer/setup.js",
+      "installer/postgres-config.js",
+      "public/**/*",
+      "webos-client/**/*",
+      "tizen-client/**/*",
+      "com.decode.dvscontroller_0.6.8_all.ipk",
+      "package.json",
+      "node_modules/**/*",
+      "!**/*.p12",
+      "!**/*.pfx",
+      "!**/*.key",
+      "!**/*.pem",
+      "!**/test/**",
+      "!**/tests/**"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/WinSW-x64.exe",
+        "to": "WinSW-x64.exe"
+      },
+      {
+        "from": "vendor/WinSW-LICENSE.txt",
+        "to": "licenses/WinSW-LICENSE.txt"
+      },
+      {
+        "from": "vendor/webos-node.exe",
+        "to": "webos-node.exe"
+      },
+      {
+        "from": "vendor/webos-cli-runtime/node_modules",
+        "to": "webos-node-modules"
+      },
+      {
+        "from": "vendor/playwright-browsers",
+        "to": "playwright-browsers"
+      },
+      {
+        "from": "vendor/postgresql",
+        "to": "postgresql"
+      },
+      {
+        "from": "dist/DVS-Receiver-0.6.8.apk",
+        "to": "android/DVS-Receiver-0.6.8.apk"
+      },
+      {
+        "from": "artifacts/toolchain/android-sdk/platform-tools",
+        "to": "android-sdk/platform-tools"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DVS Controller",
+      "include": "installer/installer.nsh",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

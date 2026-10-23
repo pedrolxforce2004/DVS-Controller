@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DVS Controller - Dashboard TV</title>
+  <link rel="stylesheet" href="/dashboard/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">DVS</span><div><strong>DVS Controller</strong><small>Monitoramento de painéis</small></div></div>
+    <div class="headline"><h1 id="slideTitle">Todos os painéis</h1><p id="slideMeta">Carregando dados...</p></div>
+    <div class="controls">
+      <span id="clock" class="clock"></span>
+      <button id="previousBtn" type="button" title="Tela anterior" aria-label="Tela anterior">‹</button>
+      <button id="pauseBtn" type="button">Pausar</button>
+      <button id="nextBtn" type="button" title="Próxima tela" aria-label="Próxima tela">›</button>
+      <button id="fullscreenBtn" type="button">Tela cheia</button>
+    </div>
+  </header>
+  <section class="summary" aria-label="Resumo do ambiente">
+    <article><span>Painéis nesta tela</span><strong id="metricPanels">0</strong></article>
+    <article><span>TVs online</span><strong id="metricOnline">0</strong></article>
+    <article><span>TVs offline</span><strong id="metricOffline">0</strong></article>
+    <article><span>Com falha</span><strong id="metricErrors">0</strong></article>
+    <article><span>CPU</span><strong id="metricCpu">0%</strong></article>
+    <article><span>Memória</span><strong id="metricMemory">0%</strong></article>
+  </section>
+  <main>
+    <div id="panelGrid" class="panel-grid" aria-live="polite"></div>
+    <div id="emptyState" class="empty-state" hidden><strong>Nenhum painel nesta tela</strong><span>O dashboard seguirá para o próximo item da rotação.</span></div>
+  </main>
+  <footer>
+    <div id="playlist" class="playlist" aria-label="Telas da rotação"></div>
+    <div class="rotation"><span id="rotationLabel">Rotação automática</span><div class="progress"><i id="progressBar"></i></div></div>
+  </footer>
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>

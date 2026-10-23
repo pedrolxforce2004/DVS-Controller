@@ -1,0 +1,28 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'br.com.decode.dvsreceiver'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'br.com.decode.dvsreceiver'
+        minSdk 23
+        targetSdk 35
+        versionCode 608
+        versionName '0.6.8'
+    }
+    signingConfigs {
+        release {
+            if (System.getenv('DVS_ANDROID_KEYSTORE')) {
+                storeFile file(System.getenv('DVS_ANDROID_KEYSTORE'))
+                storePassword System.getenv('DVS_ANDROID_STORE_PASSWORD')
+                keyAlias System.getenv('DVS_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('DVS_ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig System.getenv('DVS_ANDROID_KEYSTORE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+}

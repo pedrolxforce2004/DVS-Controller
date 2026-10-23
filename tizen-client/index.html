@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>DVS Receiver</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="$WEBAPIS/webapis/webapis.js"></script>
+</head>
+<body>
+  <main id="setup">
+    <div class="brand">DVS</div>
+    <h1>DVS Receiver</h1>
+    <p id="status">Configure o servidor para iniciar</p>
+    <form id="setupForm">
+      <label>Servidor<input id="serverUrl" type="url" placeholder="https://dvs.example.com:3080" required></label>
+      <label>Nome da TV<input id="tvName" maxlength="80" placeholder="Samsung TV" required></label>
+      <button type="submit">Conectar</button>
+    </form>
+  </main>
+  <script src="receiver.js"></script>
+</body>
+</html>
