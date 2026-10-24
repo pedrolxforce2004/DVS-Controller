@@ -1,6 +1,9 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const data = fs.mkdtempSync(path.join(os.tmpdir(), "dvs-adb-cli-"));
+process.env.DVS_ANDROID_HOME = path.join(data, "android-home");
 const manager = require("../lib/android-manager");
 
 async function main() {
@@ -25,8 +28,7 @@ async function main() {
 
   const status = await manager.cliStatus();
   if (!status.available) {
-    console.log(`ADB Android TV: ignorado (${status.error || "platform-tools ausente"})`);
-    return;
+    throw new Error(status.error || "Runtime ADB empacotado ausente");
   }
   assert.match(status.version, /Android Debug Bridge/i);
   console.log(`ADB Android TV: ${status.version.split(/\r?\n/)[0]}`);
@@ -34,5 +36,5 @@ async function main() {
 
 main().catch((error) => {
   console.error(error);
-  process.exit(1);
-});
+  process.exitCode = 1;
+}).finally(() => fs.rmSync(data, { recursive: true, force: true }));

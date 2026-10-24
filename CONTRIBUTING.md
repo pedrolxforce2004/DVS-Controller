@@ -1,9 +1,7 @@
-# Contribuição
+# Contribuir com o DVS Controller
 
-Use Node.js 22+, `npm ci` e `npm test`. Os testes criam dados temporários; nunca aponte testes para produção. Evidências ficam em `artifacts/evidence/`.
+Use Node.js 22+ e uma pasta exclusiva em `DVS_DATA_DIR`. Nunca execute testes sobre o diretório ou banco de produção. Instale dependências com `npm ci`, prepare Chromium para Playwright e execute as verificações apropriadas.
 
-Preserve IDs de aplicativos, nomes de serviços e caminhos de dados. Alterações de persistência exigem ensaio com dados anteriores, backup e retorno documentado. Não reinicialize PostgreSQL existente.
+Descreva a alteração, seus efeitos na atualização de instalações existentes e os testes executados. Para mudanças no receiver, inclua validação em navegador e uma TV de cada plataforma disponível. Informe explicitamente testes que dependem de hardware ou ferramentas ausentes.
 
-Android requer JDK 17, SDK 35 e Gradle 8.11.1. Execute `gradle -p android-client assembleDebug lint`; release exige assinatura permanente. Não envie chaves, certificados ou `local.properties`.
-
-Antes de contribuir, rode testes pertinentes, `npm audit` e `npm run release:source`. Descreva problema, resultado, evidências e limites. SDKs e PostgreSQL locais são necessários para testes correspondentes; informe testes ignorados.
+Não adicione segredos, arquivos de dados ou certificados. Preserve os identificadores de aplicativos e as chaves de assinatura da organização. Atualize o manual e as notas quando houver mudanças de comportamento.

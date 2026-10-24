@@ -1,6 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $vendor = Join-Path $root 'vendor'
+& node.exe (Join-Path $root 'scripts/prepare-adb.js')
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar ADB Android.' }
 $postgres = Join-Path $vendor 'postgresql'
 $archive = Join-Path $vendor 'postgresql.zip'
 $winsw = Join-Path $vendor 'WinSW-x64.exe'

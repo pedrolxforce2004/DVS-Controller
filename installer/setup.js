@@ -38,7 +38,7 @@ function writeConfig() {
   let config = {};
   if (fs.existsSync(target)) config = JSON.parse(fs.readFileSync(target, "utf8"));
   if (fs.existsSync(target)) {
-    const backups = path.join(dataDir, "backups", "upgrade-0.6.8-" + Date.now());
+    const backups = path.join(dataDir, "backups", "upgrade-0.6.9-" + Date.now());
     fs.mkdirSync(backups, { recursive: true });
     for (const file of ["service-config.json", "db.json", ".secret"]) {
       const source = path.join(dataDir, file);

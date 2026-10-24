@@ -7,8 +7,8 @@ android {
         applicationId 'br.com.decode.dvsreceiver'
         minSdk 23
         targetSdk 35
-        versionCode 608
-        versionName '0.6.8'
+        versionCode 609
+        versionName '0.6.9'
     }
     signingConfigs {
         release {

@@ -125,12 +125,12 @@ async function main() {
     assert.equal(await page.locator("#panelPlaylistForm").isVisible(), true);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     assert.deepEqual(errors, []);
-    await page.screenshot({ path: path.join(__dirname, "../artifacts/evidence/admin-ui-0.6.8.png"), fullPage: true });
+    await page.screenshot({ path: path.join(__dirname, "../artifacts/evidence/admin-ui-0.6.9.png"), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
     assert.equal(await page.locator("#playlistForm").isVisible(), true);
-    await page.screenshot({ path: path.join(__dirname, "../artifacts/evidence/admin-ui-mobile-0.6.8.png"), fullPage: true });
-    console.log("Admin UI 0.6.8: OK");
+    await page.screenshot({ path: path.join(__dirname, "../artifacts/evidence/admin-ui-mobile-0.6.9.png"), fullPage: true });
+    console.log("Admin UI 0.6.9: OK");
   } finally {
     if (browser) await browser.close();
     try { server.kill(); } catch (_) {}

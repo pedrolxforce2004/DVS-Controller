@@ -1,5 +1,5 @@
 (function () {
-  var APP_VERSION = "0.6.8";
+  var APP_VERSION = "0.6.9";
   var setup = document.getElementById("setup");
   var stage = document.getElementById("stage");
   var setupForm = document.getElementById("setupForm");
@@ -174,7 +174,7 @@
       finished = true;
       try { xhr.abort(); } catch (_) {}
       done(new Error("Tempo esgotado: " + url));
-    }, 15000);
+    }, options.timeout || 15000);
     xhr.open(options.method || "GET", url, true);
     xhr.setRequestHeader("content-type", "text/plain");
     if (settings.token) xhr.setRequestHeader("x-dvs-tv-token", settings.token);
@@ -383,7 +383,7 @@
     return Number(panelZoom || 1) * Number(state.tvZoom || 1);
   }
 
-  function loadDirect(url, zoom) {
+  function loadDirect(url, zoom, panel) {
     var generation = ++playbackGeneration;
     clearTimeout(directTimer); clearTimeout(frameTimer);
     frame.onload = null; frame.onerror = null;
@@ -395,16 +395,49 @@
     frame.style.display = "block";
     applyZoom(frame, effectiveZoom(zoom));
     directUrl = url;
+    frame.removeAttribute("sandbox");
     frame.src = "about:blank";
     setTimeout(function () {
       if (generation !== playbackGeneration) return;
-      frame.onload = function () { if (generation === playbackGeneration) clearTimeout(frameTimer); };
+      frame.onload = function () { if (generation === playbackGeneration) { clearTimeout(frameTimer); clearPanelError(); showMessage(""); } };
       frame.onerror = function () { if (generation === playbackGeneration) showPanelError("Falha ao carregar a pagina"); };
       frameTimer = setTimeout(function () { if (generation === playbackGeneration) showPanelError("Tempo de carregamento esgotado"); }, 25000);
-      frame.src = url;
-      checkDirectLink(generation);
+      if (panel && panel.auth && panel.auth.enabled) {
+        clearTimeout(frameTimer); showMessage("Preparando login automatico...");
+        request("/api/tv/" + encodeURIComponent(settings.id) + "/direct-login", { method: "POST", body: JSON.stringify({ panelId: panel.id }), timeout: 90000 }, function (err, auth) {
+          if (generation !== playbackGeneration) return;
+          if (err) { showPanelError("Login direto: " + err.message); return; }
+          if (auth.viewerUrl) {
+            frame.setAttribute("sandbox", "allow-scripts allow-forms allow-popups");
+            directUrl = joinUrl(settings.serverUrl, auth.viewerUrl);
+            frameTimer = setTimeout(function () { if (generation === playbackGeneration) showPanelError("Tempo de carregamento esgotado"); }, 30000);
+            frame.src = directUrl;
+            checkDirectLink(generation);
+            return;
+          }
+          var form = document.createElement("form"); form.method = "POST"; form.action = auth.loginUrl;
+          frame.name = "dvsDirectPanel"; form.target = frame.name; form.style.display = "none";
+          [ [auth.usernameField, auth.username], [auth.passwordField, auth.password] ].forEach(function (field) {
+            var input = document.createElement("input"); input.type = "hidden"; input.name = field[0]; input.value = field[1]; form.appendChild(input);
+          });
+          document.body.appendChild(form); HTMLFormElement.prototype.submit.call(form); setTimeout(function () { if (form.parentNode) form.parentNode.removeChild(form); }, 1000);
+        });
+      } else { frame.src = url; checkDirectLink(generation); }
     }, 50);
     showMessage("");
+  }
+
+  function loadStill(panel, serverState) {
+    ++playbackGeneration; clearTimeout(directTimer); clearTimeout(frameTimer); clearTimeout(imageTimer);
+    frame.onload = null; frame.onerror = null; frame.style.display = "none"; frame.src = "about:blank";
+    stopVideo(); stopServerImage(); clearPanelError(); resetZoom();
+    var media = (serverState.media || []).filter(function (item) { return item.id === panel.mediaId; })[0];
+    if (!media) { showPanelError("Imagem nao encontrada"); return; }
+    serverImage.style.display = "block"; serverImage.style.objectFit = "contain";
+    applyZoom(serverImage, effectiveZoom(panel.zoom));
+    serverImage.onload = function () { clearPanelError(); };
+    serverImage.onerror = function () { showPanelError("Falha ao carregar a imagem"); };
+    serverImage.src = joinUrl(settings.serverUrl, media.url) + "?" + playbackQuery(); showMessage("");
   }
 
   function loadServerImage(panelId, refreshSeconds, zoom) {
@@ -443,6 +476,7 @@
   }
 
   function loadLegacyWall(panelId, zoom) {
+    frame.removeAttribute("sandbox");
     var generation = ++playbackGeneration;
     clearTimeout(directTimer); clearTimeout(frameTimer);
     frame.onload = null; frame.onerror = null;
@@ -571,9 +605,10 @@
       if (state.playbackMode === "server_image") loadServerImage(selectedPanel.id, selectedPanel.refreshSeconds, selectedPanel.zoom);
       else if (state.playbackMode === "legacy_videowall") loadLegacyWall(selectedPanel.id, selectedPanel.zoom);
       else if (state.playbackMode === "video") loadVideo(selectedPanel, serverState);
+      else if (state.playbackMode === "image") loadStill(selectedPanel, serverState);
       else if (state.playbackMode === "playlist") loadPlaylist(selectedPanel, serverState);
       else if (state.playbackMode === "rtsp") loadRtsp(selectedPanel);
-      else loadDirect(selectedPanel.url, selectedPanel.zoom);
+      else loadDirect(selectedPanel.url, selectedPanel.zoom, selectedPanel);
       clearTimeout(panelPlaylistTimer);
       panelPlaylistTimer = setTimeout(function () { advance(token); }, Math.max(5, Number(item.durationSeconds || 30)) * 1000);
     }
@@ -645,7 +680,7 @@
           return;
         }
         state.currentPanelId = panel.id;
-        state.playbackMode = command.playbackMode || panel.mode || "direct";
+        state.playbackMode = panel.mode || command.playbackMode || "direct";
         if (state.playbackMode !== "panel_playlist") stopPanelPlaylist();
         state.zoom = Number(panel.zoom || 1);
         if (commandZoomGeneration === zoomCommandGeneration) state.tvZoom = Number(command.tvZoom || command.zoom || state.tvZoom || 1);
@@ -653,10 +688,11 @@
         if (state.playbackMode === "server_image") loadServerImage(panel.id, panel.refreshSeconds, panel.zoom);
         else if (state.playbackMode === "legacy_videowall") loadLegacyWall(panel.id, panel.zoom);
         else if (state.playbackMode === "video") loadVideo(panel, serverState);
+        else if (state.playbackMode === "image") loadStill(panel, serverState);
         else if (state.playbackMode === "playlist") loadPlaylist(panel, serverState);
         else if (state.playbackMode === "panel_playlist") loadPanelPlaylist(panel, serverState);
         else if (state.playbackMode === "rtsp") loadRtsp(panel);
-        else loadDirect(panel.url, panel.zoom);
+        else loadDirect(panel.url, panel.zoom, panel);
         sendHeartbeat();
         done(true);
       });
@@ -673,7 +709,8 @@
       } else if (frame.style.display === "block") {
         applyZoom(frame, effectiveZoom(state.zoom));
       } else if (serverImage.style.display === "block") {
-        applyImageZoom(serverImage, state.tvZoom);
+        if (state.playbackMode === "image") applyZoom(serverImage, effectiveZoom(state.zoom));
+        else applyImageZoom(serverImage, state.tvZoom);
       }
       sendHeartbeat();
       done(true);
@@ -683,7 +720,7 @@
       if (state.playbackMode === "server_image" && state.currentPanelId) loadServerImage(state.currentPanelId, 2, state.zoom);
       else if (state.playbackMode === "legacy_videowall" && state.currentPanelId) loadLegacyWall(state.currentPanelId, state.zoom);
       else if (state.playbackMode === "rtsp" && state.currentPanelId) loadRtsp({ id: state.currentPanelId, zoom: state.zoom });
-      else if ((state.playbackMode === "video" || state.playbackMode === "playlist") && state.currentPanelId) {
+      else if ((state.playbackMode === "video" || state.playbackMode === "playlist" || state.playbackMode === "image") && state.currentPanelId) {
         getJson(tvStatePath(), function (err, serverState) {
           if (navigationGeneration !== navigationCommandGeneration) { done(false); return; }
           if (err) { showMessage(err.message); done(false); return; }
@@ -691,6 +728,7 @@
           for (var i = 0; i < serverState.panels.length; i += 1) if (serverState.panels[i].id === state.currentPanelId) panel = serverState.panels[i];
           if (panel) {
             if (state.playbackMode === "video") loadVideo(panel, serverState);
+            else if (state.playbackMode === "image") loadStill(panel, serverState);
             else loadPlaylist(panel, serverState);
           }
           done(Boolean(panel));

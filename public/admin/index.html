@@ -95,6 +95,9 @@
                 <option value="direct">Direto na TV</option>
                 <option value="server_image">Renderizar no servidor</option>
                 <option value="video">Video individual</option>
+                <option value="image">Imagem</option>
+                <option value="rtsp">DVR / NVR (RTSP)</option>
+                <option value="legacy_videowall">VideoWall legado</option>
                 <option value="playlist" hidden>Lista de videos</option>
                 <option value="panel_playlist" hidden>Playlist de paineis</option>
               </select>
@@ -108,9 +111,15 @@
                 <div class="auth-fields">
                   <input name="authUsername" autocomplete="off" placeholder="Usuario do painel">
                   <input name="authPassword" type="password" autocomplete="new-password" placeholder="Senha (deixe vazia para manter)">
-                  <input name="usernameSelector" placeholder="Seletor do usuario (opcional)">
+                  <details class="auth-advanced"><summary>Opcoes avancadas (opcional)</summary>
+                  <select name="directMethod" aria-label="Metodo de login"><option value="auto">Automatico (formularios e JavaScript)</option><option value="form_post">Formulario POST manual</option></select>
+                  <input name="usernameSelector" placeholder="Seletor do usuario (deteccao automatica)">
                   <input name="passwordSelector" placeholder="Seletor da senha (opcional)">
-                  <input name="submitSelector" placeholder="Seletor do botao entrar (opcional)">
+                  <input name="loginUrl" type="url" placeholder="Pagina de login diferente (opcional)">
+                  <div data-manual-login hidden><input name="usernameField" placeholder="Direto: nome do campo de usuario (username)">
+                  <input name="passwordField" placeholder="Direto: nome do campo de senha (password)"></div>
+                  <p class="form-help">O login usa o link do painel e detecta os campos automaticamente. Preencha estas opcoes somente se o site exigir ajustes. MFA e CAPTCHA exigem interacao.</p>
+                  <input name="submitSelector" placeholder="Seletor do botao entrar (opcional)"></details>
                 </div>
               </details>
               <label>Zoom da pagina na TV<input name="zoom" type="range" min="0.5" max="2" step="0.05" value="1"><span id="zoomValue" class="range-value">100%</span></label>
@@ -137,12 +146,12 @@
 
       <section id="mediaResource" class="resource-section" hidden>
         <section class="panel">
-          <div class="panel-title"><h2>Biblioteca de videos</h2><span id="uploadStatus">MP4, WebM ou OGV</span></div>
+          <div class="panel-title"><h2>Biblioteca de midias</h2><span id="uploadStatus">Videos MP4 / WebM / OGV e imagens PNG / JPG / WebP</span></div>
           <form id="uploadForm" class="upload-form">
             <input name="title" placeholder="Nome para exibicao">
-            <input name="file" type="file" accept="video/mp4,video/webm,video/ogg" required>
+            <input name="file" type="file" accept="video/mp4,video/webm,video/ogg,image/png,image/jpeg,image/webp" required>
             <progress id="uploadProgress" value="0" max="100" hidden></progress>
-            <button type="submit">Enviar video</button>
+            <button type="submit">Enviar midia</button>
           </form>
           <div id="mediaGrid" class="media-grid"></div>
         </section>
@@ -197,6 +206,7 @@
         <label class="check-row"><input name="autoRenew" type="checkbox"> Renovar Dev Mode automaticamente</label>
         <label class="check-row"><input name="autoLaunch" type="checkbox"> Abrir app ao ligar</label>
         <button type="submit">Cadastrar e parear</button>
+      <select name="groupId" aria-label="Grupo da TV"><option value="default">Principal</option></select>
       </form>
       <p class="form-help">Na TV, abra Developer Mode, ative Developer Mode e Key Server antes do primeiro pareamento.</p>
       <div id="webosGrid" class="webos-grid"></div>
@@ -229,6 +239,7 @@
         <select name="linkedTvId" title="Vincular ao receiver cadastrado"><option value="">Sem vinculo</option></select>
         <label class="check-row"><input name="autoLaunch" type="checkbox"> Abrir app ao ligar</label>
         <button type="submit">Cadastrar e conectar</button>
+      <select name="groupId" aria-label="Grupo da TV"><option value="default">Principal</option></select>
       </form>
       <p class="form-help">Na TV Samsung, ative Developer Mode, informe o IP deste servidor e reinicie a TV. A porta SDB padrao e 26101.</p>
       <div id="tizenGrid" class="webos-grid"></div>
@@ -276,6 +287,7 @@
         <select name="linkedTvId" title="Vincular ao receiver cadastrado"><option value="">Sem vinculo</option></select>
         <label class="check-row"><input name="autoLaunch" type="checkbox"> Abrir app ao ligar</label>
         <button type="submit">Cadastrar e conectar</button>
+      <select name="groupId" aria-label="Grupo da TV"><option value="default">Principal</option></select>
       </form>
       <p class="form-help">Na Android TV, ative Opcoes do desenvolvedor, Depuracao USB e Depuracao pela rede/ADB. Autorize este servidor quando a TV solicitar.</p>
       <div id="androidGrid" class="webos-grid"></div>

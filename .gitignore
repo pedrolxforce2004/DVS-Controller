@@ -39,3 +39,6 @@ __pycache__/
 *.pyc
 vendor/webos-cli-runtime/
 artifacts/
+
+# ADB binario preparado por npm run prepare:adb
+vendor/android/platform-tools/

@@ -81,7 +81,7 @@ async function run() {
   assert(result.response.headers.get("content-security-policy"));
   assert.equal(result.response.headers.get("x-content-type-options"), "nosniff");
 
-  result = await request("/tv-app?name=Simulator&platform=Samsung%20Tizen&launcherVersion=0.6.8");
+  result = await request("/tv-app?name=Simulator&platform=Samsung%20Tizen&launcherVersion=0.6.9");
   assert.equal(result.response.status, 200);
   assert.match(result.response.headers.get("content-security-policy"), /frame-ancestors 'self' chrome-extension:/);
 

@@ -213,7 +213,8 @@
     if (mode === "playlist") return "Lista de videos";
     if (mode === "panel_playlist") return "Playlist de paineis";
     if (mode === "video") return "Video";
-    if (mode === "rtsp") return "RTSP via servidor";
+    if (mode === "rtsp") return "DVR / NVR";
+    if (mode === "image") return "Imagem";
     return "Direto";
   }
 
@@ -353,7 +354,7 @@
       edit.textContent = "Editar";
       edit.onclick = function () { editPanel(panel); };
       var playlistManaged = panel.mode === "playlist" && Boolean(byId(state.playlists, panel.playlistId)) || panel.mode === "panel_playlist" && Boolean(byId(state.panelPlaylists, panel.panelPlaylistId));
-      if ((!currentMe || currentMe.role !== "operator") && !playlistManaged) actions.appendChild(edit);
+      if (!playlistManaged) actions.appendChild(edit);
       if (panel.mode === "server_image") {
         var interact = document.createElement("button");
         interact.type = "button";
@@ -400,6 +401,12 @@
     form.elements.usernameSelector.value = panel.auth && panel.auth.usernameSelector || "";
     form.elements.passwordSelector.value = panel.auth && panel.auth.passwordSelector || "";
     form.elements.submitSelector.value = panel.auth && panel.auth.submitSelector || "";
+    form.elements.loginUrl.value = panel.auth && panel.auth.loginUrl !== panel.url ? panel.auth.loginUrl || "" : "";
+    form.elements.directMethod.value = panel.auth && panel.auth.directMethod || "auto";
+    form.elements.usernameField.value = panel.auth && panel.auth.usernameField || "username";
+    form.elements.passwordField.value = panel.auth && panel.auth.passwordField || "password";
+    var limited = currentMe && currentMe.role === "operator";
+    ["name", "mode", "mediaId", "playlistId", "panelPlaylistId", "videoLoop"].forEach(function (key) { form.elements[key].disabled = limited; });
     document.getElementById("zoomValue").textContent = zoomName(panel.zoom);
     document.getElementById("cancelPanelEdit").hidden = false;
     updatePanelMode();
@@ -420,6 +427,12 @@
       return;
     }
     var tvZoom = Number(tv && tv.zoom || 1);
+    if (panel.mode === "image") {
+      var still = byId(state.media, panel.mediaId);
+      if (!still) { preview.textContent = "Imagem nao encontrada"; return; }
+      var image = document.createElement("img"); image.src = still.url; image.alt = panel.name;
+      image.style.cssText = "width:100%;height:100%;object-fit:contain"; preview.appendChild(image); return;
+    }
     if (panel.mode === "video") {
       var directMedia = byId(state.media, panel.mediaId);
       if (!directMedia) { preview.textContent = "Video nao encontrado"; return; }
@@ -576,6 +589,7 @@
   }
 
   function renderWebos() {
+    fillDeviceGroups("webos");
     var linkSelect = document.getElementById("webosForm").elements.linkedTvId;
     var selected = linkSelect.value;
     linkSelect.innerHTML = '<option value="">Sem vinculo</option>';
@@ -628,10 +642,31 @@
       if (device.lastError) node.querySelector(".device-state").className = "device-state tag error";
       var buttons = node.querySelectorAll("[data-action]");
       for (var i = 0; i < buttons.length; i += 1) buttons[i].onclick = function (event) { runWebosAction(device, event.currentTarget); };
-      webosGrid.appendChild(node);
+      appendGroupedDevice(webosGrid, node, device, "webos");
     });
   }
 
+  function fillDeviceGroups(platform) {
+    var select = document.getElementById(platform + "Form").elements.groupId;
+    var selected = select.value; select.innerHTML = "";
+    sortNamed(state.groups).forEach(function (group) { var option = document.createElement("option"); option.value = group.id; option.textContent = group.name; select.appendChild(option); });
+    select.value = byId(state.groups, selected) ? selected : "default";
+  }
+  function appendGroupedDevice(grid, node, device, platform) {
+    var groupId = device.groupId || "default";
+    var group = byId(state.groups, groupId);
+    var section = Array.prototype.find.call(grid.children, function (child) { return child.dataset.groupId === groupId; });
+    if (!section) {
+      section = document.createElement("section"); section.className = "device-group panel"; section.dataset.groupId = groupId;
+      var heading = document.createElement("h3"); heading.textContent = group ? group.name : "Principal"; section.appendChild(heading);
+      var body = document.createElement("div"); body.className = "webos-grid"; section.appendChild(body); grid.appendChild(section);
+    }
+    var select = document.createElement("select"); select.setAttribute("aria-label", "Grupo de " + device.name);
+    sortNamed(state.groups).forEach(function (item) { var option = document.createElement("option"); option.value = item.id; option.textContent = item.name; select.appendChild(option); });
+    select.value = groupId;
+    select.onchange = function () { api("/api/" + platform + "/devices/" + device.id, { method: "PATCH", body: JSON.stringify({ groupId: select.value }) }).then(load).catch(function (err) { alert(err.message); }); };
+    node.appendChild(select); section.lastElementChild.appendChild(node);
+  }
   function fillTvLinks(select, selected) {
     select.innerHTML = '<option value="">Sem receiver vinculado</option>';
     sortNamed(state.tvs).forEach(function (tv) {
@@ -644,6 +679,7 @@
   }
 
   function renderTizen() {
+    fillDeviceGroups("tizen");
     var formLink = document.getElementById("tizenForm").elements.linkedTvId;
     fillTvLinks(formLink, formLink.value);
     tizenGrid.innerHTML = "";
@@ -674,11 +710,12 @@
       if (device.lastError) node.querySelector(".device-state").className = "device-state tag error";
       var buttons = node.querySelectorAll("[data-action]");
       for (var index = 0; index < buttons.length; index += 1) buttons[index].onclick = function (event) { runTizenAction(device, event.currentTarget, profile.value); };
-      tizenGrid.appendChild(node);
+      appendGroupedDevice(tizenGrid, node, device, "tizen");
     });
   }
 
   function renderAndroid() {
+    fillDeviceGroups("android");
     var formLink = document.getElementById("androidForm").elements.linkedTvId;
     fillTvLinks(formLink, formLink.value);
     androidGrid.innerHTML = "";
@@ -707,7 +744,7 @@
       if (device.lastError) node.querySelector(".device-state").className = "device-state tag error";
       var buttons = node.querySelectorAll("[data-action]");
       for (var index = 0; index < buttons.length; index += 1) buttons[index].onclick = function (event) { runAndroidAction(device, event.currentTarget); };
-      androidGrid.appendChild(node);
+      appendGroupedDevice(androidGrid, node, device, "android");
     });
   }
 
@@ -724,7 +761,10 @@
       var card = document.createElement("article");
       card.className = "media-card";
       card.innerHTML = '<video controls muted preload="metadata"></video><div class="media-card-body"><strong></strong><small></small><button type="button" class="danger-btn">Excluir</button></div>';
-      card.querySelector("video").src = media.url;
+      if (/^image\//.test(media.mime)) {
+        var image = document.createElement("img"); image.alt = media.name; image.style.cssText = "width:100%;height:180px;object-fit:contain;background:#09111f";
+        card.replaceChild(image, card.querySelector("video")); image.src = media.url;
+      } else card.querySelector("video").src = media.url;
       card.querySelector("strong").textContent = media.name;
       card.querySelector("small").textContent = media.fileName + " | " + formatBytes(media.size);
       card.querySelector("button").onclick = function () {
@@ -737,7 +777,7 @@
     var options = document.getElementById("playlistMediaOptions");
     options.innerHTML = "";
     if (!state.media.length) options.innerHTML = '<div class="empty-state">Envie um video na aba Midias antes de criar a playlist.</div>';
-    sortNamed(state.media).forEach(function (media, index) {
+    sortNamed(state.media).filter(function (media) { return /^video\//.test(media.mime); }).forEach(function (media, index) {
       var label = document.createElement("label");
       label.className = "media-option";
       label.innerHTML = '<input type="checkbox"><span class="order"></span><span class="media-option-name"></span>';
@@ -904,11 +944,18 @@
     playlistSelect.required = mode === "playlist";
     panelPlaylistSelect.hidden = mode !== "panel_playlist";
     panelPlaylistSelect.required = mode === "panel_playlist";
-    mediaSelect.hidden = mode !== "video";
-    mediaSelect.required = mode === "video";
+    mediaSelect.hidden = mode !== "video" && mode !== "image";
+    mediaSelect.required = mode === "video" || mode === "image";
     videoLoop.hidden = mode !== "video";
-    urlInput.hidden = mode === "playlist" || mode === "panel_playlist" || mode === "video";
-    urlInput.required = mode !== "playlist" && mode !== "panel_playlist" && mode !== "video" && !(mode === "rtsp" && form.dataset.panelId);
+    form.querySelector(".auth-config").hidden = ["video", "image", "rtsp", "playlist", "panel_playlist"].indexOf(mode) >= 0;
+    form.querySelector(".auth-fields").hidden = !form.elements.authEnabled.checked;
+    form.querySelector("[data-manual-login]").hidden = form.elements.directMethod.value !== "form_post";
+    Array.prototype.forEach.call(mediaSelect.options, function (option) {
+      var media = byId(state.media, option.value);
+      option.hidden = Boolean(media && !String(media.mime).startsWith(mode === "image" ? "image/" : "video/"));
+    });
+    urlInput.hidden = mode === "playlist" || mode === "panel_playlist" || mode === "video" || mode === "image";
+    urlInput.required = mode !== "playlist" && mode !== "panel_playlist" && mode !== "video" && mode !== "image" && !(mode === "rtsp" && form.dataset.panelId);
     urlInput.placeholder = mode === "rtsp" ? (form.dataset.panelId ? "RTSP salvo; deixe vazio para manter" : "rtsp://usuario:senha@camera:554/stream") : "http://servidor/painel";
   }
 
@@ -1248,9 +1295,9 @@
       tvs: state.tvs.map(function (tv) { return { id: tv.id, name: tv.name }; })
     });
     var linkedTvs = state.tvs.map(function (tv) { return { id: tv.id, name: tv.name }; });
-    var webosSignature = JSON.stringify({ devices: state.webosDevices, tvs: linkedTvs });
-    var tizenSignature = JSON.stringify({ devices: state.tizenDevices, tvs: linkedTvs });
-    var androidSignature = JSON.stringify({ devices: state.androidDevices, tvs: linkedTvs });
+    var webosSignature = JSON.stringify({ devices: state.webosDevices, tvs: linkedTvs, groups: state.groups });
+    var tizenSignature = JSON.stringify({ devices: state.tizenDevices, tvs: linkedTvs, groups: state.groups });
+    var androidSignature = JSON.stringify({ devices: state.androidDevices, tvs: linkedTvs, groups: state.groups });
 
     updateMetrics();
     if (dashboardSignature !== renderSignatures.dashboard) {
@@ -1290,9 +1337,11 @@
   document.getElementById("panelForm").onsubmit = function (event) {
     event.preventDefault();
     var data = new FormData(event.target);
+    var limited = currentMe && currentMe.role === "operator" && event.target.dataset.panelId;
+    var payload;
     api("/api/panels", {
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify((function () { payload = {
         id: event.target.dataset.panelId || "",
         name: data.get("name"),
         url: data.get("url"),
@@ -1310,10 +1359,15 @@
           password: data.get("authPassword"),
           usernameSelector: data.get("usernameSelector"),
           passwordSelector: data.get("passwordSelector"),
-          submitSelector: data.get("submitSelector")
+          submitSelector: data.get("submitSelector"),
+          loginUrl: data.get("loginUrl"),
+          directMethod: data.get("directMethod"),
+          usernameField: data.get("usernameField"),
+          passwordField: data.get("passwordField")
         }
-      })
+      }; return limited ? { id: payload.id, url: payload.url, zoom: payload.zoom, auth: payload.auth } : payload; })())
     }).then(function () {
+      ["name", "mode", "mediaId", "playlistId", "panelPlaylistId", "videoLoop"].forEach(function (key) { event.target.elements[key].disabled = false; });
       event.target.reset();
       delete event.target.dataset.panelId;
       document.getElementById("cancelPanelEdit").hidden = true;
@@ -1328,6 +1382,7 @@
   document.getElementById("cancelPanelEdit").onclick = function () {
     var form = document.getElementById("panelForm");
     form.reset();
+    ["name", "mode", "mediaId", "playlistId", "panelPlaylistId", "videoLoop"].forEach(function (key) { form.elements[key].disabled = false; });
     delete form.dataset.panelId;
     this.hidden = true;
     document.getElementById("zoomValue").textContent = "100%";
@@ -1338,6 +1393,8 @@
     document.getElementById("zoomValue").textContent = zoomName(event.target.value);
   };
   document.getElementById("panelForm").elements.mode.onchange = updatePanelMode;
+  document.getElementById("panelForm").elements.authEnabled.onchange = updatePanelMode;
+  document.getElementById("panelForm").elements.directMethod.onchange = updatePanelMode;
 
   document.getElementById("uploadForm").onsubmit = function (event) {
     event.preventDefault();
@@ -1454,6 +1511,7 @@
       method: "POST",
       body: JSON.stringify({
         name: data.get("name"),
+        groupId: data.get("groupId"),
         host: data.get("host"),
         port: data.get("port"),
         username: "prisoner",
@@ -1493,6 +1551,7 @@
       method: "POST",
       body: JSON.stringify({
         name: data.get("name"),
+        groupId: data.get("groupId"),
         host: data.get("host"),
         port: data.get("port"),
         profile: data.get("profile"),
@@ -1574,6 +1633,7 @@
       method: "POST",
       body: JSON.stringify({
         name: data.get("name"),
+        groupId: data.get("groupId"),
         host: data.get("host"),
         port: data.get("port"),
         linkedTvId: data.get("linkedTvId"),
@@ -1723,7 +1783,8 @@
     var supervisorOnly = document.querySelectorAll("[data-supervisor]");
     for (var item = 0; item < supervisorOnly.length; item += 1) supervisorOnly[item].hidden = me.role !== "supervisor";
     if (me.role === "operator") {
-      var restrictedTabs = document.querySelectorAll('[data-view="mediaView"], [data-view="webosView"], [data-view="tizenView"], [data-view="androidView"]');
+      document.querySelectorAll('[data-resource-view="groupsResource"], [data-resource-view="mediaResource"], [data-resource-view="playlistsResource"]').forEach(function (button) { button.hidden = true; });
+      var restrictedTabs = document.querySelectorAll('[data-view="webosView"], [data-view="tizenView"], [data-view="androidView"]');
       for (var tab = 0; tab < restrictedTabs.length; tab += 1) restrictedTabs[tab].hidden = true;
     }
     if (!me.mustChangePassword) {

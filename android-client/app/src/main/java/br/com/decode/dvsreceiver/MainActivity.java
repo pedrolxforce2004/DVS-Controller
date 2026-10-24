@@ -184,7 +184,7 @@ public class MainActivity extends Activity {
         titleBox.setOrientation(LinearLayout.VERTICAL);
         titleBox.setPadding(dp(18), 0, 0, 0);
         titleBox.addView(text("DVS Receiver", 30, TEXT, Typeface.BOLD));
-        titleBox.addView(text("Android TV - versao 0.6.8", 16, MUTED, Typeface.NORMAL));
+        titleBox.addView(text("Android TV - versao 0.6.9", 16, MUTED, Typeface.NORMAL));
         header.addView(titleBox, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         card.addView(header);
 
@@ -244,7 +244,7 @@ public class MainActivity extends Activity {
     private void connect() {
         configuring = false;
         disposeWeb();
-        receiverUrl = prefs.getString("server", "") + "/tv-app?name=" + Uri.encode(prefs.getString("name", "Android TV")) + "&platform=Android%20TV&launcherVersion=0.6.8";
+        receiverUrl = prefs.getString("server", "") + "/tv-app?name=" + Uri.encode(prefs.getString("name", "Android TV")) + "&platform=Android%20TV&launcherVersion=0.6.9";
         lastPageFinishedAt = System.currentTimeMillis();
         web = new WebView(this);
         web.getSettings().setJavaScriptEnabled(true);

@@ -165,7 +165,7 @@ async function main() {
   assert.equal(result.response.headers.get("cross-origin-resource-policy"), "same-origin");
   assert.match(result.response.headers.get("content-security-policy") || "", /object-src 'none'/);
 
-  console.log("Seguranca DVS 0.6.8: OK");
+  console.log("Seguranca DVS 0.6.9: OK");
 }
 
 (async () => {

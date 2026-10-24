@@ -63,7 +63,7 @@ const { chromium } = require('playwright');
     await page.locator('#pauseBtn').click();
     assert.equal(await page.locator('#rotationLabel').innerText(), 'Rotação pausada');
     fs.mkdirSync(path.join(root, 'artifacts/evidence'), { recursive: true });
-    await page.screenshot({ path: path.join(root, 'artifacts/evidence/dashboard-0.6.8.png'), fullPage: true });
+    await page.screenshot({ path: path.join(root, 'artifacts/evidence/dashboard-0.6.9.png'), fullPage: true });
     console.log('Dashboard TV: login, all-panels slide, group rotation, states and pause controls OK');
   } finally {
     if (browser) await browser.close(); child.kill(); await new Promise(resolve => setTimeout(resolve, 400)); fs.rmSync(data, { recursive: true, force: true });

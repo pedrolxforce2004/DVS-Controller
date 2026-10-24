@@ -1,42 +1,62 @@
-# DVS Controller 0.6.8
+# DVS Controller 0.6.9
 
-Gestão centralizada de painéis em LG webOS, Samsung Tizen e Android TV. Servidor Node.js, administração web, gerenciador Windows e persistência PostgreSQL com compatibilidade JSON.
+Controle centralizado de conteúdo para TVs LG webOS, Samsung Tizen e Android TV. Inclui servidor Node.js, administração web, Dashboard para TVs e gerenciador Windows.
+
+## Nesta versão
+
+- Dashboard por grupos, com status dos painéis, CPU, RAM e tráfego de rede do servidor; paginação, rotação e indicação de dados desatualizados.
+- Dispositivos das três plataformas organizados pelos mesmos grupos dos receivers.
+- Modo de exibição definido pelo servidor, protegido contra heartbeats antigos e mudanças involuntárias ao habilitar login.
+- Login direto automático para formulários tradicionais e JavaScript/JSON, com cadastro simplificado de usuário e senha.
+- Imagens PNG, JPEG e WebP como painéis, inclusive em playlists de painéis.
+- Cadastro de DVR/NVR via RTSP, convertido para HLS pelo FFmpeg.
+- Operadores podem cadastrar painéis e editar link, zoom e credenciais. Exclusão e configuração dos dispositivos permanecem restritas.
+- ADB Android 37.0.1 empacotado com DLLs e verificação SHA-256, sem exigir instalação separada do SDK.
+- Perfil Samsung selecionado preservado no cadastro e no metadado do WGT.
 
 ## Documentação
 
-- [Manual completo de produção](docs/MANUAL-0.6.8.md)
-- [Manual em PDF](docs/DVS-Controller-0.6.8-Manual.pdf)
-- [Referência técnica do código](docs/CODE-REFERENCE-0.6.8.md)
-- [Relatório de build 0.6.8](docs/BUILD-0.6.8.md)
+- [Manual de operação em PDF](docs/DVS-Controller-0.6.9-Manual.pdf)
+- [Manual de operação em Markdown](docs/MANUAL-0.6.9.md)
+- [Manual técnico](docs/MANUAL-TECNICO-0.6.9.md)
+- [Notas e atualização da versão](docs/VERSAO-0.6.9.md)
+- [Validação e limites da entrega](docs/VALIDACAO-0.6.9.md)
 - [Segurança](SECURITY.md) e [contribuição](CONTRIBUTING.md)
 
-## Novidades
+## Executar com dados isolados
 
-- WGT Tizen preserva o perfil escolhido, como `INFRA`, e usa perfil temporario apenas como fallback.
-- Previews renderizados com cache/fila para reduzir rajadas de downloads e telas pretas.
-- Sessao interativa renderizada mais leve, com comandos e atualizacao visual menos travados.
-- Playlist de paineis com tempo de exibicao por item.
-- Dashboard e grupos mais organizados.
-- Cliente Android TV com watchdog para recuperar WebView travado apos tempo ligado ou reinicio.
-
-## Desenvolvimento
-
-Requer Node.js 22+. Execute `npm ci`, defina `DVS_DATA_DIR` para uma pasta exclusiva de desenvolvimento e use `npm run dev`. Acesse `http://localhost:3080/admin`. Em banco novo, o primeiro acesso é `admin` / `admin`, com troca obrigatória. Configure HTTPS antes de acesso remoto. `.env.example` não é carregado automaticamente.
-
-`lib/`, `public/`, `manager/`, `service/` e clientes contêm produção. `tests/` contém testes/laboratório. `artifacts/` contém evidências e ferramentas locais, ignoradas pelo Git. Dados e certificados não devem ser publicados.
-
-## Verificação e distribuição
+Requer Node.js 22 ou superior. Na pasta do código:
 
 ```powershell
 npm ci
+$env:DVS_DATA_DIR = 'C:\DVS-Laboratorio\data'
+$env:DVS_ENABLE_ADMIN_AUTH = '1'
+npm run dev
+```
+
+Abra `http://localhost:3080/admin`. Em uma base nova, entre com `admin` / `admin` e altere a senha no primeiro acesso. O arquivo `.env.example` é uma referência: o servidor não o carrega automaticamente. Instale o navegador do Playwright para renderização: `npx playwright install chromium`.
+
+`/admin` gerencia TVs e conteúdo. `/dashboard` é uma visão pública de leitura para exibição em TVs. `/tv-app` executa o receiver web. Proteja o acesso ao Dashboard na rede quando nomes e status forem informação interna.
+
+## Atualizar uma instalação
+
+A fonte e o instalador Windows 0.6.9 são entregues separadamente. O instalador inclui ADB, APK Android e IPK webOS recompilados. O WGT Samsung exige o perfil de assinatura da organização. Não substitua `app.asar` por uma pasta de fontes. Para uma instalação Electron, gere o instalador 0.6.9 a partir desta fonte e preserve o diretório de dados. Consulte as notas da versão antes de aplicar o pacote.
+
+Preserve `service-config.json`, `db.json`, `.secret`, mídias, banco PostgreSQL e certificados. A chave `.secret` permite ler as credenciais já salvas; trocar essa chave torna essas credenciais ilegíveis. Ensaie atualização e reversão com cópias dos dados antes da janela de manutenção.
+
+## Testes e distribuição
+
+```powershell
 npm test
-npm audit
+npm run test:release
 npm run dist:win
 npm run release:source
 ```
 
-O exportador cria `artifacts/github-0.6.8` usando uma lista explícita e excluindo dados, chaves e ferramentas locais. O instalador tem lista própria de produção. Leia o manual antes de atualizar uma instalação existente.
+Algumas verificações exigem CLI webOS, Tizen Studio, ADB, PostgreSQL e navegadores locais. O relatório da entrega distingue testes executados de dependências ausentes. A compilação Android exige JDK 17, Gradle compatível com o projeto e SDK 35. Use a mesma chave de assinatura dos clientes existentes para permitir atualização dos aplicativos.
 
-Android: JDK 17, Gradle 8.11.1, SDK 35 e `gradle -p android-client assembleDebug lint`. A assinatura de release usa variáveis de ambiente descritas no manual. Preserve a chave para futuras atualizações.
+## Compatibilidade de conteúdo
 
-Homologação física e ensaio do instalador sobre uma cópia dos dados continuam necessários antes da implantação. Nenhum comando de build implanta no servidor ativo.
+Login direto usa o link do painel, usuário e senha, com detecção automática do formulário. O servidor prepara a sessão com Chromium e transporta a aplicação autenticada em um iframe isolado; os scripts e a renderização continuam na TV. Seletores e método POST manual ficam em opções avançadas. MFA, CAPTCHA e redirecionamento para provedores de outra origem exigem integração específica.
+
+DVR/NVR exige URL RTSP documentada pelo fabricante, credenciais e conectividade do servidor. HLS nativo depende do modelo/firmware da TV. Reprodução de gravações, seleção de canais e controle PTZ não são implementados; um canal RTSP é cadastrado como um painel. WebP também depende do firmware; prefira PNG/JPEG em TVs antigas.

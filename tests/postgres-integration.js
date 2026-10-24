@@ -8,7 +8,7 @@ const { spawn, spawnSync } = require("child_process");
 const { Client } = require("pg");
 
 const root = path.resolve(__dirname, "..");
-const pgBin = path.join(root, "vendor", "postgresql", "bin");
+const pgBin = process.env.DVS_TEST_PG_BIN || path.join(root, "vendor", "postgresql", "bin");
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "dvs-pg-test-"));
 const cluster = path.join(temp, "postgres");
 const appData = path.join(temp, "data");

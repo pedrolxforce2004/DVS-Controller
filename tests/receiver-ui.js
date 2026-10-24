@@ -45,7 +45,7 @@ const { chromium } = require('playwright');
     await receiver.locator('#panelError').waitFor({ state: 'visible', timeout: 15000 });
     assert.match(await receiver.locator('#panelError').innerText(), /Problema no Link do Painel/);
     fs.mkdirSync(path.join(__dirname, '../artifacts/evidence'), { recursive: true });
-    await receiver.screenshot({ path: path.join(__dirname, '../artifacts/evidence/panel-error-0.6.8.png') });
+    await receiver.screenshot({ path: path.join(__dirname, '../artifacts/evidence/panel-error-0.6.9.png') });
     await api(`/api/tvs/${id}/command`, { type: 'setPanel', panelId: good.id });
     await receiver.locator('#panelError').waitFor({ state: 'hidden', timeout: 15000 });
     await receiver.frameLocator('#frame').locator('h1').waitFor();

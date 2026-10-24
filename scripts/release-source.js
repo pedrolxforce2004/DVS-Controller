@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 const version = require('../package.json').version;
 const destination = path.join(root, 'artifacts', `github-${version}`);
 if (fs.existsSync(destination)) throw new Error(`Destino ja existe: ${destination}. Preserve ou remova explicitamente antes de gerar novamente.`);
-const entries = ['server.js', 'launcher.js', 'stop.js', 'package.json', 'package-lock.json', '.gitignore', '.gitattributes', '.env.example', 'README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'lib', 'public', 'manager', 'service', 'installer', 'scripts', 'tests', 'webos-client', 'tizen-client', 'android-client', 'docs', '.github', 'build', 'vendor/WinSW-LICENSE.txt'];
+const entries = ['server.js', 'launcher.js', 'stop.js', 'package.json', 'package-lock.json', '.gitignore', '.gitattributes', '.env.example', 'README.md', 'SECURITY.md', 'CONTRIBUTING.md', 'lib', 'public', 'manager', 'service', 'installer', 'scripts', 'tests', 'webos-client', 'tizen-client', 'android-client', 'docs', '.github', 'build', 'vendor/WinSW-LICENSE.txt', 'vendor/android/runtime.json'];
 const denied = /(^|\/)(node_modules|\.gradle|\.git|__pycache__|artifacts|evidence|data)(\/|$)|\.(p12|pfx|pem|key|keystore|jks|log|pyc|apk|exe|zip|ipk|wgt)$/i;
 const manifest = [];
 function copy(relative) {

@@ -12,6 +12,7 @@ const tizenManager = require("./lib/tizen-manager");
 const androidManager = require("./lib/android-manager");
 const mediaManager = require("./lib/media-manager");
 const configStore = require("./lib/config-store");
+const { DirectSessions } = require("./lib/direct-session");
 const { PostgresStore } = require("./lib/postgres-store");
 
 const { PanelHealth } = require("./lib/panel-health");
@@ -69,6 +70,7 @@ const MIME = {
   ".mp4": "video/mp4",
   ".webm": "video/webm",
   ".ogv": "video/ogg",
+  ".webp": "image/webp",
   ".m3u8": "application/vnd.apple.mpegurl",
   ".ts": "video/mp2t"
 };
@@ -99,6 +101,16 @@ const renderer = {
   frameCache: new Map(),
   previewQueue: Promise.resolve()
 };
+const directSessions = new DirectSessions({
+  browser: () => ensureRendererBrowser(require("playwright")),
+  authorize: (session) => {
+    const db = loadDb();
+    const tv = db.tvs.find(tv => tv.id === session.tvId && tv.tokenHash === session.tvTokenHash);
+    const panel = db.panels.find(panel => panel.id === session.panelId && panel.mode === "direct" && panel.authSecret + panel.updatedAt === session.signature);
+    const assigned = tv && db.panels.find(panel => panel.id === tv.currentPanelId);
+    return Boolean(panel && assigned && (assigned.id === panel.id || assigned.mode === "panel_playlist" && db.panelPlaylists.some(list => list.id === assigned.panelPlaylistId && list.items.some(item => item.panelId === panel.id))));
+  }
+});
 let previousCpuSnapshot = null;
 let systemMetrics = {
   cpuPercent: 0,
@@ -783,6 +795,7 @@ function publicState(db) {
       port: device.port,
       username: device.username,
       linkedTvId: device.linkedTvId || "",
+      groupId: db.tvs.find(tv => tv.id === device.linkedTvId)?.groupId || device.groupId || "default",
       autoRenew: Boolean(device.autoRenew),
       autoLaunch: Boolean(device.autoLaunch),
       powerState: device.powerState || "unknown",
@@ -804,6 +817,7 @@ function publicState(db) {
       serial: device.serial || "",
       profile: device.profile || "",
       linkedTvId: device.linkedTvId || "",
+      groupId: db.tvs.find(tv => tv.id === device.linkedTvId)?.groupId || device.groupId || "default",
       autoLaunch: Boolean(device.autoLaunch),
       lastAction: device.lastAction || "",
       lastResult: device.lastResult || "",
@@ -817,6 +831,7 @@ function publicState(db) {
       port: device.port,
       serial: device.serial || "",
       linkedTvId: device.linkedTvId || "",
+      groupId: db.tvs.find(tv => tv.id === device.linkedTvId)?.groupId || device.groupId || "default",
       autoLaunch: Boolean(device.autoLaunch),
       lastAction: device.lastAction || "",
       lastResult: device.lastResult || "",
@@ -927,9 +942,13 @@ function publicPanel(panel) {
     username: auth && auth.username ? String(auth.username).replace(/^(.).*(.)$/, "$1***$2") : "",
     usernameSelector: auth && auth.usernameSelector || "",
     passwordSelector: auth && auth.passwordSelector || "",
-    submitSelector: auth && auth.submitSelector || ""
+    submitSelector: auth && auth.submitSelector || "",
+    loginUrl: auth && auth.loginUrl || "",
+    usernameField: auth && auth.usernameField || "username",
+    passwordField: auth && auth.passwordField || "password",
+    directMethod: auth && auth.directMethod || "auto"
   };
-  copy.renderStatus = captureState.get(panel.id) || null;
+  copy.renderStatus = panel.mode === "server_image" ? captureState.get(panel.id) || null : null;
   if (panel.mode === "rtsp") copy.streamStatus = mediaManager.status(panel.id);
   return copy;
 }
@@ -1039,6 +1058,9 @@ async function validateMediaFile(filePath, extension) {
     const buffer = Buffer.alloc(16);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
     if (!bytesRead) return false;
+    if ([".jpg", ".jpeg"].includes(extension)) return bytesRead >= 3 && buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255;
+    if (extension === ".png") return buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    if (extension === ".webp") return buffer.subarray(0,4).toString() === "RIFF" && buffer.subarray(8,12).toString() === "WEBP";
     if (extension === ".mp4") return buffer.subarray(4, 8).toString("ascii") === "ftyp";
     if (extension === ".webm") return buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
     if (extension === ".ogv") return buffer.subarray(0, 4).toString("ascii") === "OggS";
@@ -1760,21 +1782,30 @@ async function handleApi(req, res, url) {
       logEvent(db, "tv_registered", `TV cadastrada: ${name}`, { tvId: tv.id });
     }
     if (!existingTv || !tv.name) tv.name = name.slice(0, 80);
-    tv.groupId = body.groupId || tv.groupId || "default";
+    if (!existingTv) tv.groupId = db.groups.some(g => g.id === body.groupId) ? body.groupId : "default";
     tv.model = String(body.model || tv.model || "");
     tv.platform = String(body.platform || tv.platform || "webOS");
     tv.appVersion = String(body.appVersion || tv.appVersion || "");
     tv.ip = normalizeIp(req.socket.remoteAddress);
-    tv.zoom = Number(body.zoom || tv.zoom || 1);
+    if (!existingTv) tv.zoom = Number(body.zoom || tv.zoom || 1);
     tv.lastSeen = now();
     db.webosDevices.forEach((device) => {
-      if (!device.linkedTvId && normalizeIp(device.host) === tv.ip) device.linkedTvId = tv.id;
+      if (!device.linkedTvId && normalizeIp(device.host) === tv.ip) {
+        device.linkedTvId = tv.id;
+        if (db.groups.some(g => g.id === device.groupId)) tv.groupId = device.groupId;
+      }
     });
     db.tizenDevices.forEach((device) => {
-      if (!device.linkedTvId && normalizeIp(device.host) === tv.ip) device.linkedTvId = tv.id;
+      if (!device.linkedTvId && normalizeIp(device.host) === tv.ip) {
+        device.linkedTvId = tv.id;
+        if (db.groups.some(g => g.id === device.groupId)) tv.groupId = device.groupId;
+      }
     });
     db.androidDevices.forEach((device) => {
-      if (!device.linkedTvId && normalizeIp(device.host) === tv.ip) device.linkedTvId = tv.id;
+      if (!device.linkedTvId && normalizeIp(device.host) === tv.ip) {
+        device.linkedTvId = tv.id;
+        if (db.groups.some(g => g.id === device.groupId)) tv.groupId = device.groupId;
+      }
     });
     saveDb(db);
     broadcastAdmin();
@@ -1792,10 +1823,10 @@ async function handleApi(req, res, url) {
     tv.ip = normalizeIp(req.socket.remoteAddress);
     const reportedPanelId = body.currentPanelId || "";
     const reportedZoom = body.zoom || tv.zoom || 1;
-    tv.currentPanelId = reportedPanelId || tv.currentPanelId || "";
+    tv.reportedPanelId = reportedPanelId;
     tv.lastError = String(body.lastError || "").slice(0, 500);
-    tv.playbackMode = body.playbackMode || tv.playbackMode || "direct";
-    tv.zoom = Number(reportedZoom);
+    tv.playbackMode = db.panels.find(p => p.id === tv.currentPanelId)?.mode || tv.playbackMode || "direct";
+    // Heartbeats acknowledge playback; desired zoom remains server-owned.
     acknowledgePendingCommand(tv, reportedPanelId, reportedZoom);
     saveDb(db);
     sendJson(res, 200, { ok: true, serverTime: now() });
@@ -1810,10 +1841,10 @@ async function handleApi(req, res, url) {
     tv.ip = normalizeIp(req.socket.remoteAddress);
     const reportedPanelId = url.searchParams.get("currentPanelId") || "";
     const reportedZoom = url.searchParams.get("zoom") || tv.zoom || 1;
-    tv.currentPanelId = reportedPanelId || tv.currentPanelId || "";
+    tv.reportedPanelId = reportedPanelId;
     tv.lastError = String(url.searchParams.get("lastError") || "").slice(0, 500);
-    tv.playbackMode = url.searchParams.get("playbackMode") || tv.playbackMode || "direct";
-    tv.zoom = Number(reportedZoom);
+    tv.playbackMode = db.panels.find(p => p.id === tv.currentPanelId)?.mode || tv.playbackMode || "direct";
+    // Heartbeats acknowledge playback; desired zoom remains server-owned.
     acknowledgePendingCommand(tv, reportedPanelId, reportedZoom);
     saveDb(db);
     sendApi(res, url, 200, { ok: true, serverTime: now() });
@@ -1838,6 +1869,24 @@ async function handleApi(req, res, url) {
       if (sseClients.get(tv.id) === res) sseClients.delete(tv.id);
     });
     return;
+  }
+
+  if (req.method === "POST" && parts[0] === "api" && parts[1] === "tv" && parts[3] === "direct-login") {
+    const tv = authTv(db, parts[2], tvRequestToken(req, url, parts[2]));
+    if (!tv) return sendJson(res, 401, { error: "TV nao autorizada" });
+    const body = await readBody(req);
+    const assigned = db.panels.find(p => p.id === tv.currentPanelId);
+    const playlist = assigned && assigned.mode === "panel_playlist" && db.panelPlaylists.find(p => p.id === assigned.panelPlaylistId);
+    const allowed = assigned && (assigned.id === body.panelId || playlist && playlist.items.some(item => item.panelId === body.panelId));
+    const panel = allowed && db.panels.find(p => p.id === body.panelId && p.mode === "direct");
+    const auth = panel && decryptSecret(panel.authSecret);
+    if (!auth || !auth.enabled) return sendJson(res, 403, { error: "Login nao permitido para esta TV" });
+    res.setHeader("cache-control", "no-store");
+    if (auth.directMethod !== "form_post") {
+      try { return sendJson(res, 200, await directSessions.create(tv, panel, auth)); }
+      catch (error) { return sendJson(res, 400, { error: error.message, code: "DVS_DIRECT_LOGIN_FAILED" }); }
+    }
+    return sendJson(res, 200, { loginUrl: auth.loginUrl || panel.url, username: auth.username, password: auth.password, usernameField: auth.usernameField || "username", passwordField: auth.passwordField || "password" });
   }
 
   if (req.method === "GET" && parts[0] === "api" && parts[1] === "tv" && parts[3] === "panel-health") {
@@ -1917,6 +1966,9 @@ async function handleApi(req, res, url) {
     device.linkedTvId = db.tvs.some((tv) => tv.id === body.linkedTvId) ? body.linkedTvId : matchedTv && matchedTv.id || "";
     device.autoRenew = Boolean(body.autoRenew);
     device.autoLaunch = Boolean(body.autoLaunch);
+    device.groupId = db.groups.some(g => g.id === body.groupId) ? body.groupId : device.groupId || "default";
+    const linkedReceiver = db.tvs.find(tv => tv.id === device.linkedTvId);
+    if (linkedReceiver) linkedReceiver.groupId = device.groupId;
     device.updatedAt = now();
     saveDb(db);
     if (body.passphrase) {
@@ -1948,7 +2000,15 @@ async function handleApi(req, res, url) {
     if (!device) return sendJson(res, 404, { error: "Dispositivo webOS nao encontrado" });
     if (body.autoRenew !== undefined) device.autoRenew = Boolean(body.autoRenew);
     if (body.autoLaunch !== undefined) device.autoLaunch = Boolean(body.autoLaunch);
+    if (body.groupId !== undefined) {
+      if (!db.groups.some(g => g.id === body.groupId)) return sendJson(res, 400, { error: "Grupo invalido" });
+      device.groupId = body.groupId;
+    }
     if (body.linkedTvId !== undefined) device.linkedTvId = db.tvs.some((tv) => tv.id === body.linkedTvId) ? body.linkedTvId : "";
+    if (body.groupId !== undefined) {
+      const linkedReceiver = db.tvs.find(tv => tv.id === device.linkedTvId);
+      if (linkedReceiver) linkedReceiver.groupId = device.groupId;
+    }
     if (body.scheduledSystemUpdateAt !== undefined) {
       const schedule = String(body.scheduledSystemUpdateAt || "").trim();
       if (schedule && Number.isNaN(new Date(schedule).getTime())) return sendJson(res, 400, { error: "Horario de atualizacao invalido", code: "DVS_WEBOS_UPDATE_SCHEDULE_INVALID" });
@@ -2006,6 +2066,7 @@ async function handleApi(req, res, url) {
       const saved = fresh.webosDevices.find((item) => item.id === device.id);
       if (saved) {
         saved.lastAction = action;
+      if (["package", "install", "update"].includes(action) && Object.prototype.hasOwnProperty.call(saved, "profile")) saved.profile = String(body.profile || saved.profile || "").trim();
         saved.lastResult = output;
         saved.lastError = "";
         saved.updatedAt = now();
@@ -2073,6 +2134,9 @@ async function handleApi(req, res, url) {
     const matchedTv = db.tvs.find((tv) => normalizeIp(tv.ip) === normalizeIp(host));
     device.linkedTvId = db.tvs.some((tv) => tv.id === body.linkedTvId) ? body.linkedTvId : matchedTv && matchedTv.id || "";
     device.autoLaunch = Boolean(body.autoLaunch);
+    device.groupId = db.groups.some(g => g.id === body.groupId) ? body.groupId : device.groupId || "default";
+    const linkedReceiver = db.tvs.find(tv => tv.id === device.linkedTvId);
+    if (linkedReceiver) linkedReceiver.groupId = device.groupId;
     device.updatedAt = now();
     saveDb(db);
     try {
@@ -2102,9 +2166,20 @@ async function handleApi(req, res, url) {
     const device = db.tizenDevices.find((item) => item.id === parts[3]);
     if (!device) return sendApi(res, url, 404, { error: "Dispositivo Tizen nao encontrado", code: "DVS_TIZEN_NOT_FOUND" });
     if (body.name !== undefined) device.name = String(body.name || "").trim() || device.name;
-    if (body.profile !== undefined) device.profile = String(body.profile || "").trim();
+    if (body.profile !== undefined) {
+      if (body.profile && !/^[A-Za-z0-9_.-]{1,80}$/.test(String(body.profile))) return sendJson(res, 400, { error: "Perfil invalido" });
+      device.profile = String(body.profile || "").trim();
+    }
     if (body.autoLaunch !== undefined) device.autoLaunch = Boolean(body.autoLaunch);
+    if (body.groupId !== undefined) {
+      if (!db.groups.some(g => g.id === body.groupId)) return sendJson(res, 400, { error: "Grupo invalido" });
+      device.groupId = body.groupId;
+    }
     if (body.linkedTvId !== undefined) device.linkedTvId = db.tvs.some((tv) => tv.id === body.linkedTvId) ? body.linkedTvId : "";
+    if (body.groupId !== undefined) {
+      const linkedReceiver = db.tvs.find(tv => tv.id === device.linkedTvId);
+      if (linkedReceiver) linkedReceiver.groupId = device.groupId;
+    }
     device.updatedAt = now();
     saveDb(db);
     broadcastAdmin();
@@ -2141,6 +2216,7 @@ async function handleApi(req, res, url) {
       const saved = fresh.tizenDevices.find((item) => item.id === device.id);
       if (saved) {
         saved.lastAction = action;
+      if (["package", "install", "update"].includes(action) && Object.prototype.hasOwnProperty.call(saved, "profile")) saved.profile = String(body.profile || saved.profile || "").trim();
         saved.lastResult = output;
         saved.lastError = "";
         saved.updatedAt = now();
@@ -2224,6 +2300,9 @@ async function handleApi(req, res, url) {
     const matchedTv = db.tvs.find((tv) => normalizeIp(tv.ip) === normalizeIp(host));
     device.linkedTvId = db.tvs.some((tv) => tv.id === body.linkedTvId) ? body.linkedTvId : matchedTv && matchedTv.id || "";
     device.autoLaunch = Boolean(body.autoLaunch);
+    device.groupId = db.groups.some(g => g.id === body.groupId) ? body.groupId : device.groupId || "default";
+    const linkedReceiver = db.tvs.find(tv => tv.id === device.linkedTvId);
+    if (linkedReceiver) linkedReceiver.groupId = device.groupId;
     device.updatedAt = now();
     saveDb(db);
     try {
@@ -2255,7 +2334,15 @@ async function handleApi(req, res, url) {
     if (!device) return sendApi(res, url, 404, { error: "Dispositivo Android TV nao encontrado", code: "DVS_ANDROID_NOT_FOUND" });
     if (body.name !== undefined) device.name = String(body.name || "").trim() || device.name;
     if (body.autoLaunch !== undefined) device.autoLaunch = Boolean(body.autoLaunch);
+    if (body.groupId !== undefined) {
+      if (!db.groups.some(g => g.id === body.groupId)) return sendJson(res, 400, { error: "Grupo invalido" });
+      device.groupId = body.groupId;
+    }
     if (body.linkedTvId !== undefined) device.linkedTvId = db.tvs.some((tv) => tv.id === body.linkedTvId) ? body.linkedTvId : "";
+    if (body.groupId !== undefined) {
+      const linkedReceiver = db.tvs.find(tv => tv.id === device.linkedTvId);
+      if (linkedReceiver) linkedReceiver.groupId = device.groupId;
+    }
     device.updatedAt = now();
     saveDb(db);
     if (body.autoLaunch !== undefined) {
@@ -2307,6 +2394,7 @@ async function handleApi(req, res, url) {
       const saved = fresh.androidDevices.find((item) => item.id === device.id);
       if (saved) {
         saved.lastAction = action;
+      if (["package", "install", "update"].includes(action) && Object.prototype.hasOwnProperty.call(saved, "profile")) saved.profile = String(body.profile || saved.profile || "").trim();
         saved.lastResult = output;
         saved.lastError = "";
         saved.autoLaunch = device.autoLaunch;
@@ -2352,8 +2440,8 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url.pathname === "/api/media/upload") {
     const originalName = path.basename(String(url.searchParams.get("name") || "video.mp4").trim()).slice(0, 240);
     const extension = path.extname(originalName).toLowerCase();
-    const allowed = { ".mp4": "video/mp4", ".webm": "video/webm", ".ogv": "video/ogg" };
-    if (!allowed[extension]) return sendJson(res, 400, { error: "Formato invalido. Use MP4, WebM ou OGV. Para TVs LG, prefira MP4 H.264." });
+    const allowed = { ".mp4": "video/mp4", ".webm": "video/webm", ".ogv": "video/ogg", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
+    if (!allowed[extension]) return sendJson(res, 400, { error: "Formato invalido. Use MP4, WebM, OGV, PNG, JPG ou WebP." });
     const mediaId = id("media");
     const storedName = `${mediaId}${extension}`;
     const targetPath = path.join(MEDIA_DIR, storedName);
@@ -2373,7 +2461,7 @@ async function handleApi(req, res, url) {
       };
       const fresh = loadDb();
       fresh.media.push(item);
-      logEvent(fresh, "media_uploaded", `Video enviado: ${item.name}`, { mediaId: item.id, size });
+      logEvent(fresh, "media_uploaded", `Midia enviada: ${item.name}`, { mediaId: item.id, size });
       saveDb(fresh);
       broadcastAdmin();
       sendJson(res, 200, { media: { ...item, storedName: undefined, url: `/media/${item.id}` } });
@@ -2400,7 +2488,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && url.pathname === "/api/playlists") {
     const body = await readBody(req);
-    const items = Array.isArray(body.items) ? body.items.filter((mediaId) => db.media.some((media) => media.id === mediaId)) : [];
+    const items = Array.isArray(body.items) ? body.items.filter((mediaId) => db.media.some((media) => media.id === mediaId && String(media.mime).startsWith("video/"))) : [];
     if (!items.length) return sendJson(res, 400, { error: "Selecione pelo menos um video" });
     const existingPlaylist = body.id ? db.playlists.find((item) => item.id === body.id) : null;
     const playlist = {
@@ -2520,9 +2608,20 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && url.pathname === "/api/panels") {
     const body = await readBody(req);
-    const requestedMode = String(body.mode || "direct");
     const existingPanel = body.id ? db.panels.find((item) => item.id === body.id) : null;
-    if (sessionUser.role === "operator" && body.id) return sendJson(res, 403, { error: "Operador pode cadastrar novos paineis; edicao exige Tecnico ou Supervisor" });
+    if (body.id && !existingPanel) return sendJson(res, 404, { error: "Painel nao encontrado" });
+    const requestedMode = String(body.mode || existingPanel && existingPanel.mode || "direct");
+    if (!["direct", "server_image", "legacy_videowall", "playlist", "panel_playlist", "video", "image", "rtsp"].includes(requestedMode)) return sendJson(res, 400, { error: "Modo invalido" });
+    if (existingPanel) {
+      if (sessionUser.role === "operator") {
+        const allowed = new Set(["id", "url", "zoom", "auth"]);
+        for (const key of Object.keys(body)) {
+          if (allowed.has(key)) continue;
+          if (JSON.stringify(body[key]) !== JSON.stringify(existingPanel[key])) return sendJson(res, 403, { error: "Operador pode editar somente link, zoom e login", code: "DVS_AUTH_FORBIDDEN" });
+        }
+      }
+      for (const key of ["name", "url", "mode", "playlistId", "panelPlaylistId", "mediaId", "loop", "width", "height", "zoom"]) if (body[key] === undefined) body[key] = existingPanel[key];
+    }
     if (!existingPanel && db.panels.length >= MAX_PANELS) return sendJson(res, 409, { error: "Limite de paineis atingido", code: "DVS_PANEL_LIMIT_REACHED" });
     if (requestedMode === "playlist" && !db.playlists.some((playlist) => playlist.id === body.playlistId)) {
       return sendJson(res, 400, { error: "Lista de reproducao invalida" });
@@ -2530,17 +2629,19 @@ async function handleApi(req, res, url) {
     if (requestedMode === "panel_playlist" && !db.panelPlaylists.some((playlist) => playlist.id === body.panelPlaylistId)) {
       return sendJson(res, 400, { error: "Playlist de paineis invalida" });
     }
-    if (requestedMode === "video" && !db.media.some((media) => media.id === body.mediaId)) {
+    if (["video", "image"].includes(requestedMode) && !db.media.some((media) => media.id === body.mediaId && String(media.mime).startsWith(requestedMode === "image" ? "image/" : "video/"))) {
       return sendJson(res, 400, { error: "Video invalido" });
     }
     if (requestedMode === "rtsp" && !/^rtsps?:\/\//i.test(String(body.url || "")) && !(existingPanel && existingPanel.sourceSecret)) {
       return sendJson(res, 400, { error: "Informe uma URL RTSP valida" });
     }
-    if (!["playlist", "panel_playlist", "video", "rtsp"].includes(requestedMode) && !validateUrl(body.url)) return sendJson(res, 400, { error: "URL invalida" });
+    if (!["playlist", "panel_playlist", "video", "image", "rtsp"].includes(requestedMode) && !validateUrl(body.url)) return sendJson(res, 400, { error: "URL invalida" });
     if (["width", "height", "zoom"].some(key => body[key] !== undefined && !Number.isFinite(Number(body[key])))) return sendJson(res, 400, { error: "Dimensoes ou zoom invalidos" });
     const oldAuth = existingPanel ? decryptSecret(existingPanel.authSecret) : null;
-    const authBody = body.auth || {};
-    const usesWebAuth = Boolean(authBody.enabled && !["playlist", "video", "rtsp"].includes(requestedMode));
+    const authBody = body.auth || oldAuth || {};
+    const usesWebAuth = Boolean(authBody.enabled && ["direct", "server_image", "legacy_videowall"].includes(requestedMode));
+    if (usesWebAuth && requestedMode === "direct" && !validateUrl(authBody.loginUrl || body.url)) return sendJson(res, 400, { error: "URL de login invalida" });
+    if (usesWebAuth && requestedMode === "direct" && new URL(authBody.loginUrl || body.url).origin !== new URL(body.url).origin) return sendJson(res, 400, { error: "Login direto deve usar a mesma origem do painel" });
     let authSecret = existingPanel && existingPanel.authSecret || "";
     if (usesWebAuth) {
       authSecret = encryptSecret({
@@ -2549,7 +2650,11 @@ async function handleApi(req, res, url) {
         password: String(authBody.password || oldAuth && oldAuth.password || "").slice(0, 1024),
         usernameSelector: String(authBody.usernameSelector || "").slice(0, 500),
         passwordSelector: String(authBody.passwordSelector || "").slice(0, 500),
-        submitSelector: String(authBody.submitSelector || "").slice(0, 500)
+        submitSelector: String(authBody.submitSelector || "").slice(0, 500),
+        loginUrl: String(authBody.loginUrl || body.url || "").slice(0, 2048),
+        usernameField: String(authBody.usernameField || "username").slice(0, 120),
+        passwordField: String(authBody.passwordField || "password").slice(0, 120),
+        directMethod: authBody.directMethod === "form_post" ? "form_post" : "auto"
       });
     } else if (body.auth) {
       authSecret = "";
@@ -2559,11 +2664,11 @@ async function handleApi(req, res, url) {
     const panel = {
       id: existingPanel ? existingPanel.id : id("panel"),
       name: String(body.name || "Painel").trim().slice(0, 120),
-      url: ["playlist", "panel_playlist", "video", "rtsp"].includes(requestedMode) ? "" : String(body.url || "").trim(),
-      mode: usesWebAuth ? "server_image" : ["server_image", "legacy_videowall", "playlist", "panel_playlist", "video", "rtsp"].includes(requestedMode) ? requestedMode : "direct",
+      url: ["playlist", "panel_playlist", "video", "image", "rtsp"].includes(requestedMode) ? "" : String(body.url || "").trim(),
+      mode: requestedMode,
       playlistId: requestedMode === "playlist" ? String(body.playlistId || "") : "",
       panelPlaylistId: requestedMode === "panel_playlist" ? String(body.panelPlaylistId || "") : "",
-      mediaId: requestedMode === "video" ? String(body.mediaId || "") : "",
+      mediaId: ["video", "image"].includes(requestedMode) ? String(body.mediaId || "") : "",
       loop: requestedMode === "video" ? body.loop !== false : true,
       sourceSecret: requestedMode === "rtsp" ? sourceSecret : "",
       refreshSeconds: 1,
@@ -2577,6 +2682,12 @@ async function handleApi(req, res, url) {
     const index = db.panels.findIndex((item) => item.id === panel.id);
     if (index >= 0) db.panels[index] = { ...db.panels[index], ...panel };
     else db.panels.push(panel);
+    for (const tv of db.tvs.filter(tv => tv.currentPanelId === panel.id || db.panels.some(p => p.id === tv.currentPanelId && p.mode === "panel_playlist" && db.panelPlaylists.some(list => list.id === p.panelPlaylistId && list.items.some(item => item.panelId === panel.id))))) {
+      const desired = db.panels.find(p => p.id === tv.currentPanelId);
+      assignPanelToTv(db, tv.id, desired);
+      pushCommand(tv.id, tv.pendingCommand);
+    }
+    if (existingPanel && existingPanel.mode === "rtsp") mediaManager.stop(panel.id);
     logEvent(db, "panel_saved", `Painel salvo: ${panel.name}`, { panelId: panel.id });
     saveDb(db);
     broadcastAdmin();
@@ -2624,6 +2735,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "DELETE" && parts[0] === "api" && parts[1] === "groups" && parts[2]) {
     if (parts[2] === "default") return sendJson(res, 400, { error: "O grupo Principal nao pode ser removido" });
+    for (const devices of [db.webosDevices, db.tizenDevices, db.androidDevices]) for (const device of devices) if (device.groupId === parts[2]) device.groupId = "default";
     db.groups = db.groups.filter((item) => item.id !== parts[2]);
     db.tvs.forEach((tv) => {
       if (tv.groupId === parts[2]) tv.groupId = "default";
@@ -2940,6 +3052,11 @@ async function handleLegacyWall(req, res, parts, url) {
 const requestHandler = async (req, res) => {
   try {
     applySecurityHeaders(req, res);
+    if (req.url.startsWith("/direct-app/")) {
+      if (REQUIRE_TLS && !isSecureRequest(req)) return sendJson(res, 426, { error: "HTTPS obrigatorio" });
+      await directSessions.handle(req, res, new URL(req.url, "http://localhost"));
+      return;
+    }
     if (req.method === "OPTIONS") {
       res.writeHead(204, { allow: "GET, HEAD, POST, PATCH, DELETE, OPTIONS" });
       res.end();
@@ -3008,12 +3125,12 @@ const requestHandler = async (req, res) => {
       return;
     }
     if (url.pathname === "/receiver") {
-      res.setHeader("content-security-policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' chrome-extension:; form-action 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src http: https:; style-src 'self'; script-src 'self'");
+      res.setHeader("content-security-policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' chrome-extension:; form-action 'self' http: https:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src http: https:; style-src 'self'; script-src 'self'");
       serveFile(res, path.join(PUBLIC_DIR, "receiver", "index.html"));
       return;
     }
     if (url.pathname === "/tv-app") {
-      res.setHeader("content-security-policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' chrome-extension:; form-action 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src http: https:; style-src 'self'; script-src 'self'");
+      res.setHeader("content-security-policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' chrome-extension:; form-action 'self' http: https:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; frame-src http: https:; style-src 'self'; script-src 'self'");
       serveFile(res, path.join(PUBLIC_DIR, "receiver", "index.html"));
       return;
     }
@@ -3360,6 +3477,10 @@ if (process.send) {
   process.on("disconnect", shutdown);
 }
 
+server.on("upgrade", (req, socket, head) => {
+  if (req.url.startsWith("/direct-app/") && (!REQUIRE_TLS || isSecureRequest(req))) directSessions.upgrade(req, socket, head);
+  else socket.destroy();
+});
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error(`A porta ${PORT} ja esta em uso. Encerre a instancia anterior ou defina outra porta com PORT.`);
@@ -3389,6 +3510,7 @@ async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   mediaManager.stopAll();
+  directSessions.close();
   for (const client of sseClients.values()) client.end();
   const forceTimer = setTimeout(() => {
     for (const socket of serverSockets) socket.destroy();

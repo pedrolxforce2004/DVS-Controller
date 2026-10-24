@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var VERSION = "0.6.8";
+  var VERSION = "0.6.9";
   var form = document.getElementById("setupForm");
   var serverInput = document.getElementById("serverUrl");
   var nameInput = document.getElementById("tvName");

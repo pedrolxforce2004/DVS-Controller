@@ -29,5 +29,5 @@ try {
   fs.writeFileSync(path.join(data, 'service-config.json'), '{broken');
   assert.throws(() => vm.runInContext('writeConfig()', context));
   assert.equal(fs.readFileSync(path.join(data, 'service-config.json'), 'utf8'), '{broken');
-  console.log('Upgrade 0.6.7: existing configuration, identities, database, encryption key, backup and corrupt-file fail-closed OK');
+  console.log('Upgrade 0.6.9: existing configuration, identities, database, encryption key, backup and corrupt-file fail-closed OK');
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

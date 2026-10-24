@@ -1,6 +1,6 @@
 {
   "id": "com.decode.dvscontroller",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "vendor": "Decode",
   "type": "web",
   "main": "index.html",

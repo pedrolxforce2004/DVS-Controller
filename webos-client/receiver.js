@@ -1,5 +1,5 @@
 (function () {
-  var APP_VERSION = "0.6.8";
+  var APP_VERSION = "0.6.9";
   var setupForm = document.getElementById("setupForm");
   var serverInput = setupForm.elements.serverUrl;
   var nameInput = setupForm.elements.name;

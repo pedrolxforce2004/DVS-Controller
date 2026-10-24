@@ -1,6 +1,6 @@
 {
   "name": "dvs-controller",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "private": true,
   "description": "DVS Controller - gerenciamento de paineis em LG webOS, Samsung Tizen e Android TV.",
   "author": "Decode",
@@ -12,7 +12,7 @@
     "manager": "electron .",
     "service": "node service/host.js",
     "build:icon": "node scripts/build-icon.js",
-    "prepare:installer": "npm run build:icon && powershell -NoProfile -ExecutionPolicy Bypass -File installer/prepare-runtime.ps1",
+    "prepare:installer": "npm run prepare:adb && npm run build:icon && powershell -NoProfile -ExecutionPolicy Bypass -File installer/prepare-runtime.ps1",
     "dist:win": "npm run prepare:installer && electron-builder --win nsis",
     "test:syntax": "node --check launcher.js && node --check stop.js && node --check server.js && node --check service/host.js && node --check manager/main.js && node --check manager/preload.js && node --check manager/ui/app.js && node --check installer/setup.js && node --check lib/config-store.js && node --check lib/postgres-store.js && node --check lib/media-manager.js && node --check lib/webos-manager.js && node --check lib/tizen-manager.js && node --check lib/android-manager.js && node --check public/login.js && node --check public/admin/app.js && node --check public/dashboard/app.js && node --check public/receiver/receiver.js && node --check webos-client/receiver.js && node --check tizen-client/receiver.js && node --check tests/service-installation.js && node --check tests/webos-cli.js && node --check tests/tizen-cli.js && node --check tests/android-cli.js && node --check tests/config-store.js && node --check tests/manager-ui.js && node --check tests/admin-ui.js && node --check tests/dashboard-ui.js && node --check tests/integration.js && node --check tests/security.js && node --check tests/postgres-integration.js && node --check tests/rendering-lab.js && node --check tests/watchdog.js && node --check lib/panel-health.js && node --check scripts/release-source.js",
     "test:integration": "node tests/integration.js",
@@ -27,12 +27,18 @@
     "test:tizen-cli": "node tests/tizen-cli.js",
     "test:android-cli": "node tests/android-cli.js",
     "test:render-lab": "node tests/rendering-lab.js",
-    "test": "npm run test:syntax && npm run test:service-installation && npm run test:webos-cli && npm run test:tizen-cli && npm run test:android-cli && npm run test:config && npm run test:integration && npm run test:security && npm run test:postgres && npm run test:watchdog && npm run test:manager-ui && npm run test:admin-ui && npm run test:dashboard-ui && npm run test:panel-health && npm run test:receiver-ui && npm run test:upgrade",
+    "test": "npm run test:syntax && npm run test:service-installation && npm run test:webos-cli && npm run test:tizen-cli && npm run test:android-cli && npm run test:config && npm run test:integration && npm run test:security && npm run test:postgres && npm run test:watchdog && npm run test:manager-ui && npm run test:admin-ui && npm run test:dashboard-ui && npm run test:panel-health && npm run test:receiver-ui && npm run test:upgrade && npm run test:release && npm run test:media && npm run test:tizen-profile && npm run test:direct-login && npm run test:android-flow",
     "release:source": "node scripts/release-source.js",
     "test:panel-health": "node tests/panel-health.js",
     "test:receiver-ui": "node tests/receiver-ui.js",
     "test:upgrade": "node tests/upgrade.js",
-    "test:dashboard-ui": "node tests/dashboard-ui.js"
+    "test:dashboard-ui": "node tests/dashboard-ui.js",
+    "test:release": "node tests/release-069.js",
+    "test:media": "node tests/media-069.js",
+    "test:tizen-profile": "node tests/tizen-profile.js",
+    "prepare:adb": "node scripts/prepare-adb.js",
+    "test:direct-login": "node tests/direct-login.js",
+    "test:android-flow": "node tests/android-flow.js"
   },
   "engines": {
     "node": ">=22"
@@ -66,7 +72,7 @@
       "public/**/*",
       "webos-client/**/*",
       "tizen-client/**/*",
-      "com.decode.dvscontroller_0.6.8_all.ipk",
+      "com.decode.dvscontroller_0.6.9_all.ipk",
       "package.json",
       "node_modules/**/*",
       "!**/*.p12",
@@ -102,11 +108,11 @@
         "to": "postgresql"
       },
       {
-        "from": "dist/DVS-Receiver-0.6.8.apk",
-        "to": "android/DVS-Receiver-0.6.8.apk"
+        "from": "dist/DVS-Receiver-0.6.9.apk",
+        "to": "android/DVS-Receiver-0.6.9.apk"
       },
       {
-        "from": "artifacts/toolchain/android-sdk/platform-tools",
+        "from": "vendor/android/platform-tools",
         "to": "android-sdk/platform-tools"
       }
     ],
